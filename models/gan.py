@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 
-### WARNING: DO NOT EDIT THE CLASS NAME, INITIALIZER, AND GIVEN INPUTS AND ATTRIBUTES. OTHERWISE, YOUR TEST CASES CAN FAIL. ###
+### WARNING: DO NOT EDIT THE CLASS NAME,
+# INITIALIZER, AND GIVEN INPUTS AND ATTRIBUTES. OTHERWISE, YOUR TEST CASES CAN FAIL. ###
 
 
 class DCGAN(nn.Module):
@@ -70,15 +71,30 @@ class DCGAN(nn.Module):
         real = batch["images"]
         noise = batch.get("noise")
         if noise is None:
-            noise = ...  # TODO: draw latent noise for the generator
-        fake_images = ...  # TODO: generate fake images from the latent noise
-        logits_real = ...  # TODO: score real images with the discriminator
-        logits_fake_detached = ...  # TODO: score fake images without backpropagating into G
+            #noise = ...  # TODO: draw latent noise for the generator
+            noise = torch.randn(real.size(0), self.latent_dim, device=real.device)
+
+        # fake_images = ...  # TODO: generate fake images from the latent noise
+        fake_images = self.sample(noise)
+
+        # logits_real = ...  # TODO: score real images with the discriminator
+        logits_real = self.discriminator(real)
+
+        # logits_fake_detached = ...  # TODO: score fake images without backpropagating into G
+        logits_fake_detached = self.discriminator(fake_images.detach())
+
         ones = torch.ones_like(logits_real)  # targets for real samples
         zeros = torch.zeros_like(logits_fake_detached)  # targets for fake samples
-        discriminator_loss = ...  # TODO: compute the discriminator loss
-        logits_fake = ...  # TODO: score fake images for the generator update
-        generator_loss = ...  # TODO: compute the generator loss
+
+        # discriminator_loss = ...  # TODO: compute the discriminator loss
+        discriminator_loss = self.criterion(logits_real, ones) + self.criterion(logits_fake_detached, zeros)
+
+        # logits_fake = ...  # TODO: score fake images for the generator update
+        logits_fake = self.discriminator(fake_images)
+        
+        # generator_loss = ...  # TODO: compute the generator loss
+        generator_loss = self.criterion(logits_fake, ones)
+
         loss = discriminator_loss + generator_loss
         return {
             "loss": loss,

@@ -129,29 +129,69 @@ class DenoiseUNet(nn.Module):
 
     def q_sample(self, x_start, t, noise):
         shape = (t.size(0),) + (1,) * (x_start.dim() - 1)
-        mean = ...  # TODO: compute the mean of q(x_t | x_0), hint: use self.sqrt_alphas_cumprod
-        std = ...  # TODO: compute the standard deviation term, hint: use self.sqrt_one_minus_alphas_cumprod
-        return ...  # TODO: return the noisy sample x_t
+
+        # mean = ...  # TODO: compute the mean of q(x_t | x_0), hint: use self.sqrt_alphas_cumprod
+        mean = self.sqrt_alphas_cumprod[t].view(shape) * x_start
+
+        # std = ...  # TODO: compute the standard deviation term, hint: use self.sqrt_one_minus_alphas_cumprod
+        std = self.sqrt_one_minus_alphas_cumprod[t].view(shape)
+
+        r = mean + std * noise
+
+        # return ...  # TODO: return the noisy sample x_t
+        return r
+    
 
     def forward(self, batch):
         x0 = batch["images"]
         t = batch.get("timesteps")
+
         if t is None:
-            t = ...  # TODO: draw random timesteps for the batch
+
+            # t = ...  # TODO: draw random timesteps for the batch
+            t = torch.randint(0, self.timesteps, (x0.size(0),), device=x0.device)
+
+
         noise = batch.get("noise")
+
         if noise is None:
-            noise = ...  # TODO: draw Gaussian noise for the forward process
-        xt = ...  # TODO: sample from q(x_t | x_0)
+            
+            # noise = ...  # TODO: draw Gaussian noise for the forward process
+            noise = torch.randn_like(x0)
+
+        # xt = ...  # TODO: sample from q(x_t | x_0)
+        xt = self.q_sample(x0, t, noise)
+
+
         time_emb = self.time_embedding(t)
-        h0 = ...  # TODO: apply the initial convolution
-        skip0, h1 = ...  # TODO: apply the first down block
-        skip1, h2 = ...  # TODO: apply the second down block
-        skip2, h3 = ...  # TODO: apply the last down block
-        h_mid = ...  # TODO: apply the middle residual block
-        h = ...  # TODO: apply the first up block
-        h = ...  # TODO: apply the second up block
-        h = ...  # TODO: apply the final up block
-        pred_noise = ...  # TODO: map to the predicted noise
+
+        # h0 = ...  # TODO: apply the initial convolution
+        h0 = self.model["init"](xt)
+
+        # skip0, h1 = ...  # TODO: apply the first down block
+        skip0, h1 = self.model["down0"](h0, time_emb)
+
+        # skip1, h2 = ...  # TODO: apply the second down block
+        skip1, h2 = self.model["down1"](h1, time_emb)
+
+        # skip2, h3 = ...  # TODO: apply the last down block
+        skip2, h3 = self.model["down2"](h2, time_emb)
+
+        # h_mid = ...  # TODO: apply the middle residual block  
+        h_mid = self.model["mid"](h3, time_emb)
+
+        # h = ...  # TODO: apply the first up block
+        h = self.model["up2"](h_mid, skip2, time_emb)
+
+        # h = ...  # TODO: apply the second up block
+        h = self.model["up1"](h, skip1, time_emb)
+
+        # h = ...  # TODO: apply the final up block
+        h = self.model["up0"](h, skip0, time_emb)
+
+        # pred_noise = ...  # TODO: map to the predicted noise
+        pred_noise = self.model["out"](h)
+
         loss = F.mse_loss(pred_noise, noise, reduction='mean')
         return {
             "loss": loss,

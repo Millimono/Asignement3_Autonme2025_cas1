@@ -92,24 +92,45 @@ class ConvVAE(nn.Module):
         return mean, logvar
 
     def _gaussian_nll(self, x, mean, logvar):
-        logvar_clamped = ...  # TODO: clamp logvar between -10 and 10 for stability
-        var = ...  # TODO: exponentiate the clamped log-variance
-        log_term = ...  # TODO: compute log-term for Gaussian NLL
-        squared_error = ...  # TODO: squared reconstruction error
+
+        # logvar_clamped = ...  # TODO: clamp logvar between -10 and 10 for stability
+        logvar_clamped = torch.clamp(logvar, -10, 10)
+
+        # var = ...  # TODO: exponentiate the clamped log-variance
+        var = torch.exp(logvar_clamped) 
+
+        # log_term = ...  # TODO: compute log-term for Gaussian NLL
+        log_term = math.log(2 * math.pi) + logvar_clamped 
+        
+        # squared_error = ...  # TODO: squared reconstruction error
+        squared_error = (x - mean) ** 2
+
         nll = 0.5 * (log_term + squared_error / var) ## negative log likelihood
         return nll.flatten(start_dim=1).sum(dim=1)
 
     def _kl_divergence(self, mu, logvar):
-        kl = ...  # TODO: compute KL divergence between diagonal Gaussian and standard normal distribution
+        # kl = ...  # TODO: compute KL divergence between diagonal Gaussian and standard normal distribution
+        kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - torch.exp(logvar), dim=1)
         return kl
 
     def forward(self, batch):
         x = batch["images"]
-        mu, logvar = ...  # TODO: encode the input
-        z = ...  # TODO: sample from the latent distribution
-        recon_mu, recon_logvar = ...  # TODO: decode the latent sample
-        recon_loss = ...  # TODO: compute reconstruction loss (per sample)
+
+        # mu, logvar = ...  # TODO: encode the input
+        mu, logvar = self.encode(x) 
+
+        # z = ...  # TODO: sample from the latent distribution
+        z = self.reparameterize(mu, logvar)
+        #
+        # recon_mu, recon_logvar = ...  # TODO: decode the latent sample
+        recon_mu, recon_logvar = self.decode(z)
+
+        # recon_loss = ...  # TODO: compute reconstruction loss (per sample)
+        recon_loss = self._gaussian_nll(x, recon_mu, recon_logvar)
+
         kl = ...  # TODO: compute KL divergence term (per sample)
+        kl = self._kl_divergence(mu, logvar)
+
         loss = (recon_loss + kl).mean() ## mean is used to aggregate the total loss across the batch
         return {
             "loss": loss,

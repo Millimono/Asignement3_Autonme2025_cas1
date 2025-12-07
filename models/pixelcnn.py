@@ -14,11 +14,26 @@ class MaskedConv2d(nn.Conv2d):
 
     def _build_mask(self):
         mask = torch.ones_like(self.weight)
+
+        _, _, kH, kW = self.weight.shape
+        c_h = kH // 2
+        c_w = kW // 2
+
         # Mask type A blocks the current pixel in addition to future pixels; type B allows the current pixel.
-        ...  # TODO: zero out rows strictly below the current pixel
-        ...  # TODO: zero out columns to the right of the current pixel (respecting mask type)
+        # ...  # TODO: zero out rows strictly below the current pixel
+        mask[:, :, c_h + 1 :, :] = 0
+
+        # ...  # TODO: zero out columns to the right of the current pixel (respecting mask type)
+        # mask[:, :, c_h, c_w + 1 :] = 0
+        mask[:, :, :, c_w + 1 :] = 0
+        
         if self.mask_type == "A":
-            ...  # TODO: zero the current pixel for type A masks
+
+            # ...  # TODO: zero the current pixel for type A masks
+            mask[:, :, c_h, c_w] = 0
+
+        self.mask.copy_(mask)
+
         return mask
 
     def forward(self, x):
@@ -95,17 +110,29 @@ class PixelCNN(nn.Module):
 
     def forward(self, batch):
         x = batch["images"]
-        logits = ...  # TODO: compute logits over discrete bins
+
+        # logits = ...  # TODO: compute logits over discrete bins
+        logits = self.net(x)
+
         b, c_bins, h, w = logits.shape
         logits = logits.view(b, self.image_channels, self.bins, h, w)
         targets = batch.get("targets")
+
         if targets is None:
-            targets = ...  # TODO: quantise the input images to bin indices
+
+            # targets = ...  # TODO: quantise the input images to bin indices
+            # targets = torch.clamp((x * (self.bins)).long(), 0, self.bins)
+            targets = torch.clamp((x * (self.bins - 1)).floor().long(), 0, self.bins - 1)
+
         else:
             targets = targets.long()
         logits_flat = logits.permute(0, 3, 4, 1, 2).reshape(-1, self.bins)
         targets_flat = targets.permute(0, 2, 3, 1).reshape(-1)
-        loss = ...  # TODO: compute the cross-entropy loss
+
+        # loss = ...  # TODO: compute the cross-entropy loss
+        loss = F.cross_entropy(logits_flat, targets_flat) 
+
+
         logits = logits.view(b, self.image_channels * self.bins, h, w)
         return {
             "loss": loss,
